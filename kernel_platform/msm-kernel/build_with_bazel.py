@@ -305,10 +305,11 @@ class BazelBuilder:
         """Copy the built kernel Image to the expected output directory."""
         target_norm = target.replace("-", "_")
         variant_norm = variant.replace("-", "_")
-        out_dir = DEFAULT_OUT_DIR.format(
-            workspace=self.workspace, target=target_norm, variant=variant_norm
-        )
-        dist_dir = os.path.join(out_dir, "dist")
+        out_dirs = [
+            DEFAULT_OUT_DIR.format(workspace=self.workspace, target=target_norm, variant=variant_norm)
+        ]
+        if self.out_dir:
+            out_dirs.insert(0, self.out_dir)
 
         # Source locations to check
         possible_sources = [
@@ -323,14 +324,18 @@ class BazelBuilder:
 
         os.makedirs(dist_dir, exist_ok=True)
 
-        for src in possible_sources:
-            src_path = os.path.join(self.workspace, src)
-            if os.path.exists(src_path):
-                dest = os.path.join(dist_dir, "Image")
-                logging.info("Copying %s to %s", src_path, dest)
-                subprocess.run(["cp", "-f", src_path, dest], check=True)
-                logging.info("Kernel Image copied successfully to %s", dest)
-                return
+        for out_dir in out_dirs:
+            dist_dir = os.path.join(out_dir, "dist")
+            os.makedirs(dist_dir, exist_ok=True)
+            for src in possible_sources:
+                src_path = os.path.join(self.workspace, src)
+                if os.path.exists(src_path):
+                    dest = os.path.join(dist_dir, "Image")
+                    logging.info("Copying %s to %s", src_path, dest)
+                    subprocess.run(["cp", "-f", src_path, dest], check=True)
+                    logging.info("Kernel Image copied successfully to %s", dest)
+                    break
+        return
 
         logging.warning("Kernel Image not found at expected locations")
 

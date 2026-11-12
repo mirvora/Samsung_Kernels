@@ -280,6 +280,11 @@ if [ "${RECOMPILE_KERNEL}" == "1" ]; then
     -t "$KERNEL_TARGET" "$KERNEL_VARIANT" $LTO_KBUILD_ARG $EXTRA_KBUILD_ARGS --skip abl \
     --out_dir "${ANDROID_KP_OUT_DIR}" $KERNEL_ONLY_ARG
 
+  if [ "${KERNEL_ONLY}" == "1" ]; then
+    echo "  Kernel build completed successfully for KERNEL_ONLY=1"
+    exit 0
+  fi
+
   COPY_NEEDED=1
 fi
 
