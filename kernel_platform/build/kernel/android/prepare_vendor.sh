@@ -81,6 +81,7 @@
 #   LTO                - Specify Link-Time Optimization level. See LTO_VALUES in kleaf/constants.bzl
 #                        for list of valid values.
 #   EXTRA_KBUILD_ARGS  - Arguments to pass to kernel build (build_with_bazel.py)
+#   KERNEL_ONLY        - Build only the kernel Image (no modules, dtbo, boot.img, etc.)
 #
 # To compile out-of-tree kernel objects and set up the prebuilt UAPI headers,
 # these environment variables must be set.
@@ -271,9 +272,13 @@ if [ "${RECOMPILE_KERNEL}" == "1" ]; then
   echo "  Recompiling kernel"
 
   # shellcheck disable=SC2086
+  KERNEL_ONLY_ARG=""
+  if [ "${KERNEL_ONLY}" == "1" ]; then
+    KERNEL_ONLY_ARG="--kernel-only"
+  fi
   "${ROOT_DIR}/build_with_bazel.py" \
     -t "$KERNEL_TARGET" "$KERNEL_VARIANT" $LTO_KBUILD_ARG $EXTRA_KBUILD_ARGS --skip abl \
-    --out_dir "${ANDROID_KP_OUT_DIR}"
+    --out_dir "${ANDROID_KP_OUT_DIR}" $KERNEL_ONLY_ARG
 
   COPY_NEEDED=1
 fi

@@ -1,0 +1,120 @@
+# Copyright (C) 2023 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(
+    "@kernel_toolchain_info//:dict.bzl",
+    "VARS",
+)
+load(
+    ":clang_toolchain.bzl",
+    "android_arm64_clang_toolchain",
+    "android_arm_clang_toolchain",
+    "android_i386_clang_toolchain",
+    "android_riscv64_clang_toolchain",
+    "android_x86_64_clang_toolchain",
+    "linux_x86_64_clang_toolchain",
+)
+load(":versions.bzl", "VERSIONS")
+
+bzl_library(
+    name = "versions",
+    srcs = ["versions.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "register",
+    srcs = ["register.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [":versions"],
+)
+
+# Default toolchain for cc_* rules.
+
+linux_x86_64_clang_toolchain(
+    name = "linux_x86_64_clang_toolchain",
+    clang_version = VARS["CLANG_VERSION"],
+)
+
+android_arm64_clang_toolchain(
+    name = "android_arm64_clang_toolchain",
+    clang_version = VARS["CLANG_VERSION"],
+)
+
+android_arm_clang_toolchain(
+    name = "android_arm_clang_toolchain",
+    clang_version = VARS["CLANG_VERSION"],
+)
+
+android_i386_clang_toolchain(
+    name = "android_i386_clang_toolchain",
+    clang_version = VARS["CLANG_VERSION"],
+)
+
+android_x86_64_clang_toolchain(
+    name = "android_x86_64_clang_toolchain",
+    clang_version = VARS["CLANG_VERSION"],
+)
+
+android_riscv64_clang_toolchain(
+    name = "android_riscv64_clang_toolchain",
+    clang_version = VARS["CLANG_VERSION"],
+)
+
+# Extra toolchain for kernel_* rules
+
+constraint_setting(name = "clang_version")
+
+[constraint_value(
+    name = version,
+    constraint_setting = ":clang_version",
+    visibility = ["//visibility:public"],
+) for version in VERSIONS]
+
+[linux_x86_64_clang_toolchain(
+    name = version + "_linux_x86_64_clang_toolchain",
+    clang_version = version,
+    extra_compatible_with = [version],
+) for version in VERSIONS]
+
+[android_arm64_clang_toolchain(
+    name = version + "_android_arm64_clang_toolchain",
+    clang_version = version,
+    extra_compatible_with = [version],
+) for version in VERSIONS]
+
+[android_arm_clang_toolchain(
+    name = version + "_android_arm_clang_toolchain",
+    clang_version = version,
+    extra_compatible_with = [version],
+) for version in VERSIONS]
+
+[android_i386_clang_toolchain(
+    name = version + "_android_i386_clang_toolchain",
+    clang_version = version,
+    extra_compatible_with = [version],
+) for version in VERSIONS]
+
+[android_x86_64_clang_toolchain(
+    name = version + "_android_x86_64_clang_toolchain",
+    clang_version = version,
+    extra_compatible_with = [version],
+) for version in VERSIONS]
+
+[android_riscv64_clang_toolchain(
+    name = version + "_android_riscv64_clang_toolchain",
+    clang_version = version,
+    extra_compatible_with = [version],
+) for version in VERSIONS]

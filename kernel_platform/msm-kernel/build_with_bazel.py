@@ -53,7 +53,7 @@ class Target:
 class BazelBuilder:
     """Helper class for building with Bazel"""
 
-    def __init__(self, target_list, skip_list, out_dir, dry_run, module, project, variant, user_opts):
+    def __init__(self, target_list, skip_list, out_dir, dry_run, module, project, variant, user_opts, kernel_only=False):
         self.workspace = os.path.realpath(
             os.path.join(os.path.dirname(os.path.realpath(__file__)), "..")
         )
@@ -78,6 +78,7 @@ class BazelBuilder:
         self.module = module
         self.project = project
         self.variant = variant
+        self.kernel_only = kernel_only
         self.prepare_sec_env_files()
 
         if len(self.target_list) > 1 and out_dir:
@@ -272,8 +273,73 @@ class BazelBuilder:
                 opt_file.write("{}".format("\n".join(self.user_opts)))
             opt_file.write("\n")
 
+    def build_kernel_only(self):
+        """Build only the kernel Image without modules, dtbo, boot.img, etc."""
+        if len(self.target_list) != 1:
+            logging.error("--kernel-only requires exactly one target-variant pair")
+            sys.exit(1)
+
+        t, v = self.target_list[0]
+        kernel_label = "//{}:{}_{}".format(self.kernel_dir, t, v)
+
+        if self.skip_list:
+            self.user_opts.extend(["--//msm-kernel:skip_{}=true".format(s) for s in self.skip_list])
+
+        self.user_opts.extend([
+            "--user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom",
+            "--ignore_missing_projects",
+        ])
+
+        if self.dry_run:
+            self.user_opts.append("--nobuild")
+
+        logging.info("Building kernel Image only: %s", kernel_label)
+        self.clean_legacy_generated_files()
+        self.build_targets([Target(self.workspace, t, v, kernel_label, self.out_dir)])
+
+        # Copy the Image to the expected output location
+        if not self.dry_run:
+            self._copy_kernel_image(t, v)
+
+    def _copy_kernel_image(self, target, variant):
+        """Copy the built kernel Image to the expected output directory."""
+        target_norm = target.replace("-", "_")
+        variant_norm = variant.replace("-", "_")
+        out_dir = DEFAULT_OUT_DIR.format(
+            workspace=self.workspace, target=target_norm, variant=variant_norm
+        )
+        dist_dir = os.path.join(out_dir, "dist")
+
+        # Source locations to check
+        possible_sources = [
+            "bazel-bin/msm-kernel/{}/arch/arm64/boot/Image".format(target_norm),
+            "bazel-bin/msm-kernel/{}/arch/arm64/boot/Image.gz".format(target_norm),
+        ]
+
+        # Also check with target as-is (with dashes)
+        possible_sources.extend([
+            "bazel-bin/msm-kernel/{}-{}_gki/arch/arm64/boot/Image".format(target_norm, variant_norm),
+        ])
+
+        os.makedirs(dist_dir, exist_ok=True)
+
+        for src in possible_sources:
+            src_path = os.path.join(self.workspace, src)
+            if os.path.exists(src_path):
+                dest = os.path.join(dist_dir, "Image")
+                logging.info("Copying %s to %s", src_path, dest)
+                subprocess.run(["cp", "-f", src_path, dest], check=True)
+                logging.info("Kernel Image copied successfully to %s", dest)
+                return
+
+        logging.warning("Kernel Image not found at expected locations")
+
     def build(self):
         """Determine which targets to build, then build them"""
+        if self.kernel_only:
+            self.build_kernel_only()
+            return
+
         targets_to_build = self.get_build_targets()
 
         if not targets_to_build:
@@ -305,7 +371,6 @@ class BazelBuilder:
             self.run_targets(targets_to_build)
 
     def change_file_permission(self):
-        # NOTE: ES1 Pre-Release - assign u+w attribute to
         file_permission = {
             os.path.join(self.workspace, "common", "android", "abi_gki_aarch64_qcom"): stat.S_IREAD | stat.S_IWRITE,
             os.path.join(self.workspace, "msm-kernel", "modules.vendor_blocklist.msm.*"): stat.S_IREAD | stat.S_IWRITE,
@@ -422,6 +487,11 @@ def main():
 	default="eng",
         help="Specify the build variant (e.g. --variant eng)",
     )
+    parser.add_argument(
+        "--kernel-only",
+        action="store_true",
+        help="Build only the kernel Image (no modules, dtbo, boot.img, super.img, etc.) for faster builds",
+    )
 
     args, user_opts = parser.parse_known_args(sys.argv[1:])
 
@@ -432,7 +502,11 @@ def main():
 
     args.skip.extend(DEFAULT_SKIP_LIST)
 
-    builder = BazelBuilder(args.target, args.skip, args.out_dir, args.dry_run, args.module, args.project, args.variant, user_opts)
+    builder = BazelBuilder(
+        args.target, args.skip, args.out_dir, args.dry_run,
+        args.module, args.project, args.variant, user_opts,
+        kernel_only=args.kernel_only
+    )
     try:
         if args.menuconfig:
             builder.run_menuconfig()
